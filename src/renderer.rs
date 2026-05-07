@@ -127,7 +127,7 @@ impl<G: GaussianPod> Renderer<G> {
         gaussians: &GaussiansBuffer<G>,
         indirect_indices: &IndirectIndicesBuffer,
     ) -> Result<Self, RendererCreateError> {
-        if (device.limits().max_storage_buffer_binding_size as u64) < gaussians.buffer().size() {
+        if device.limits().max_storage_buffer_binding_size < gaussians.buffer().size() {
             return Err(RendererCreateError::ModelSizeExceedsDeviceLimit {
                 model_size: gaussians.buffer().size(),
                 device_limit: device.limits().max_storage_buffer_binding_size,
@@ -256,7 +256,7 @@ impl<G: GaussianPod> Renderer<G, ()> {
         log::debug!("Creating renderer pipeline layout");
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Renderer Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[Some(&bind_group_layout)],
             ..Default::default()
         });
 

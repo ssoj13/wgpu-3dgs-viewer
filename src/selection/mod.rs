@@ -25,7 +25,9 @@
 //! #
 //! # type GaussianPod = core::GaussianPodWithShSingleCov3dSingleConfigs;
 //! #
-//! # let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+//! # let instance = wgpu::Instance::new(
+//! #     wgpu::InstanceDescriptor::new_without_display_handle_from_env()
+//! # );
 //! #
 //! # let adapter = instance
 //! #     .request_adapter(&wgpu::RequestAdapterOptions::default())

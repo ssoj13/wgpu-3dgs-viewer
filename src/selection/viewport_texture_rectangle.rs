@@ -173,7 +173,7 @@ impl ViewportTextureRectangleRenderer<()> {
         log::debug!("Creating viewport texture rectangle renderer pipeline layout");
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Viewport Texture Rectangle Renderer Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[Some(&bind_group_layout)],
             ..Default::default()
         });
 

@@ -100,7 +100,8 @@ impl core::System for System {
         let size = window.inner_size();
 
         log::debug!("Creating wgpu instance");
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
 
         log::debug!("Creating window surface");
         let surface = instance.create_surface(window.clone()).expect("surface");
@@ -301,8 +302,9 @@ impl core::System for System {
 
     fn render(&mut self) {
         let texture = match self.surface.get_current_texture() {
-            Ok(texture) => texture,
-            Err(e) => {
+            wgpu::CurrentSurfaceTexture::Success(texture)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
+            e => {
                 log::error!("Failed to get current texture: {e:?}");
                 return;
             }
