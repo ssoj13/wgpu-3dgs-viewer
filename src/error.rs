@@ -11,7 +11,7 @@ pub enum RendererCreateError {
         try smaller model or more aggressive compression\
         "
     )]
-    ModelSizeExceedsDeviceLimit { model_size: u64, device_limit: u32 },
+    ModelSizeExceedsDeviceLimit { model_size: u64, device_limit: u64 },
     #[error("{0}")]
     WeslCompile(#[from] wesl::Error),
 }
@@ -25,7 +25,7 @@ pub enum PreprocessorCreateError {
         try smaller model or more aggressive compression\
         "
     )]
-    ModelSizeExceedsDeviceLimit { model_size: u64, device_limit: u32 },
+    ModelSizeExceedsDeviceLimit { model_size: u64, device_limit: u64 },
     #[error("{0}")]
     ComputeBundleBuild(#[from] core::ComputeBundleBuildError),
     #[error("{0}")]

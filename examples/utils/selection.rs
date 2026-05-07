@@ -75,7 +75,7 @@ impl ViewportTextureOverlayRenderer {
         log::debug!("Creating selection viewport texture overlay renderer pipeline layout");
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Selection Viewport Texture Overlay Renderer Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[Some(&bind_group_layout)],
             ..Default::default()
         });
 
