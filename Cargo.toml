@@ -1,6 +1,6 @@
 [package]
 name = "wgpu-3dgs-viewer"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 authors = ["Lio Qing"]
 license = "MIT OR Apache-2.0"
@@ -52,8 +52,8 @@ viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
 
 [dependencies]
-wgpu-3dgs-core = { version = "0.6" }
-wgpu-3dgs-editor = { version = "0.6", optional = true }
+wgpu-3dgs-core = { version = "0.7" }
+wgpu-3dgs-editor = { version = "0.7", optional = true }
 
 bytemuck = { version = "1.25", features = [
     "derive",
@@ -78,8 +78,8 @@ pollster = { version = "0.4" }
 winit = { version = "0.30" }
 
 [patch.crates-io]
-wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core", rev = "226984e3679c663d429b5e1bc3e2b06e3bc5a6db" }
-wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true, rev = "aa5f0270ede98bf452ebfd009eb90f2b48eba3ad" }
+wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core", tag = "v0.7.0" }
+wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true, tag = "v0.7.0" }
 
 # For local development:
 # wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
