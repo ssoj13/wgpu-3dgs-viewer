@@ -61,7 +61,7 @@ bytemuck = { version = "1.25", features = [
     "min_const_generics",
 ] }
 bitflags = { version = "2.11", features = ["bytemuck"] }
-glam = { version = "0.32", features = ["bytemuck"] }
+glam = { version = "0.33", features = ["bytemuck"] }
 half = { version = "2.7", features = ["bytemuck"] }
 log = "0.4"
 oneshot = "0.2"
