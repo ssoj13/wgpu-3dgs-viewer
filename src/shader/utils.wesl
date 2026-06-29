@@ -19,53 +19,63 @@ fn cull(ndc_pos: vec3<f32>) -> bool {
     return !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0)));
 }
 
-// Project a 3D covariance matrix into a 2D (screen-space) covariance matrix, WITHOUT the low-pass
-// dilation. Represented as (cov.xx, cov.xy, cov.yy) in pixel².
+// Project a 3D covariance into a 2D (screen-space) covariance (pixel²), WITHOUT the low-pass
+// dilation. Faithful port of bevy_gaussian_splatting `helpers::cov2d` / inria 3DGS, adapted to this
+// crate's Camera (view = view_from_world, proj = clip_from_view, size = viewport px).
+//
+// CRITICAL: `focal` uses the FULL viewport size (proj-NDC-scale × size, no ×0.5). A standard
+// projection has proj[0][0] = 2·f/width, so focal = 2·f_px — exactly bevy's units. Combined with the
+// ½-NDC mapping in render.wesl this yields the correct 3σ footprint in REAL pixels, which is what
+// makes the +0.3 dilation cover ≳ 1px and anti-alias cleanly. The previous ×0.5 focal left the
+// covariance in half-pixel² units, so +0.3 under-covered (≈ 0.27 real px) → sub-pixel sparkle.
 fn cov2d_raw(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> vec3<f32> {
     let cov3d = gaussian_unpack_cov3d(gaussian);
-    let sr = model_scale_rot_mat(model_transform);
-
     let vrk = mat3x3<f32>(
         cov3d[0], cov3d[1], cov3d[2],
         cov3d[1], cov3d[3], cov3d[4],
         cov3d[2], cov3d[4], cov3d[5],
     );
+    // Fold the model transform's scale+rotation into the 3D covariance (world space), exactly as
+    // bevy folds gaussian_uniforms.transform: Σ_world = SR · Σ · SRᵀ.
+    let sr = model_scale_rot_mat(model_transform);
+    let vrk_w = sr * vrk * transpose(sr);
 
-    let focal = vec2<f32>(camera.proj[0][0], camera.proj[1][1]) * camera.size * 0.5;
+    let world_pos = model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
+    let t = camera.view * world_pos;
 
-    let t = camera.view * model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
-    let j = transpose(mat3x3<f32>(
-        focal.x / t.z, 0.0, -(focal.x * t.x) / (t.z * t.z),
-        0.0, focal.y / t.z, -(focal.y * t.y) / (t.z * t.z),
+    let focal = vec2<f32>(camera.proj[0][0] * camera.size.x, camera.proj[1][1] * camera.size.y);
+    let s = 1.0 / (t.z * t.z);
+    let j = mat3x3<f32>(
+        focal.x / t.z, 0.0, -(focal.x * t.x) * s,
+        0.0, -focal.y / t.z, (focal.y * t.y) * s,
         0.0, 0.0, 0.0,
+    );
+    let w = transpose(mat3x3<f32>(
+        camera.view[0].xyz,
+        camera.view[1].xyz,
+        camera.view[2].xyz,
     ));
-    let w = mat3x3<f32>(camera.view[0].xyz, camera.view[1].xyz, camera.view[2].xyz);
-
-    let cov2d = (j * w * sr) * vrk * transpose(j * w * sr);
-
-    return vec3<f32>(cov2d[0][0], cov2d[0][1], cov2d[1][1]);
+    let tt = w * j;
+    let cov = transpose(tt) * vrk_w * tt;
+    return vec3<f32>(cov[0][0], cov[0][1], cov[1][1]);
 }
 
-// Screen-space low-pass dilation (px²) added to the 2D-covariance diagonal. Matches inria 3DGS /
-// Mip-Splatting: it guarantees every splat covers ≳ 1px so sub-pixel gaussians stop aliasing /
-// sparkling (the grainy-chrome artifact). `cov2d_compensation` rescales opacity so the dilation does
-// not brighten or inflate distant splats.
+// Screen-space low-pass dilation (px²) added to the 2D-covariance diagonal (inria 3DGS / bevy):
+// guarantees every splat covers ≳ 1px so sub-pixel gaussians stop aliasing/sparkling.
 const cov2d_dilation = 0.3;
 
-// Projected 2D covariance WITH the low-pass dilation applied — the footprint used for the splat axes
-// (both the render quad and the preprocess cull bound, so they stay consistent).
+// Projected 2D covariance WITH the low-pass dilation applied.
 fn cov2d(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> vec3<f32> {
     let c = cov2d_raw(gaussian, model_transform, camera);
     return vec3<f32>(c.x + cov2d_dilation, c.y, c.z + cov2d_dilation);
 }
 
-// Mip-Splatting opacity compensation for the dilation: sqrt(det(raw) / det(dilated)) ∈ (0, 1].
-// Multiply a splat's alpha by this so dilating its footprint conserves total energy.
-fn cov2d_compensation(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> f32 {
-    let c = cov2d_raw(gaussian, model_transform, camera);
-    let det_raw = c.x * c.z - c.y * c.y;
-    let det_dil = (c.x + cov2d_dilation) * (c.z + cov2d_dilation) - c.y * c.y;
-    return sqrt(max(det_raw, 0.0) / max(det_dil, 1e-9));
+// Inverse of the (dilated) 2D covariance — the "conic" used to evaluate the gaussian per pixel:
+// power = -0.5·(conic.x·dx² + conic.z·dy²) + conic.y·dx·dy   (bevy GAUSSIAN_3D fragment path).
+fn cov2d_conic(cov: vec3<f32>) -> vec3<f32> {
+    let det = cov.x * cov.z - cov.y * cov.y;
+    let det_inv = 1.0 / det;
+    return vec3<f32>(cov.z * det_inv, -cov.y * det_inv, cov.x * det_inv);
 }
 
 // Calculate the diagonal axes of a 2D covariance matrix.

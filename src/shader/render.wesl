@@ -1,8 +1,9 @@
 import package::{
     camera::{ Camera, camera_aspect_ratio },
     utils::{
+        cov2d,
         cov2d_axes,
-        cov2d_compensation,
+        cov2d_conic,
         view_color,
     },
 };
@@ -105,6 +106,37 @@ fn vert_main(
     }
     
     let std_dev = gaussian_transform_max_std_dev(gaussian_transform.flags);
+
+    if display_mode == gaussian_display_mode_splat {
+        // bevy_gaussian_splatting GAUSSIAN_3D + USE_AABB path: axis-aligned bbox quad sized to the
+        // 3-sigma footprint, with the exact per-pixel conic gaussian evaluated in the fragment.
+        let cov = cov2d(gaussian, model_transform, camera);
+        let det = cov.x * cov.z - cov.y * cov.y;
+        if det <= 0.0 {
+            out.clip_pos = vec4<f32>(0.0, 0.0, 2.0, 1.0);
+            return out;
+        }
+        // AABB half-extent (px) = cutoff (= std_dev) * max eigen-stddev (bevy get_bounding_box_clip).
+        let mid = 0.5 * (cov.x + cov.z);
+        let term = sqrt(max(mid * mid - det, 0.0));
+        let lambda1 = mid + term;
+        let lambda2 = max(mid - term, 0.0);
+        let radius_px = std_dev * gaussian_transform.size * max(sqrt(lambda1), sqrt(lambda2));
+
+        let corner = quad_offset(vert_index);          // unit +/-1 quad corner
+        let d = corner * radius_px;                     // px offset center->vertex (bevy bb.zw)
+        // bevy maps to NDC directly (world_to_clip already perspective-divides, w ~ 1) then offsets
+        // by radius_px / size; replicate that so the quad is exactly bevy-sized in real pixels.
+        let ndc = proj_pos.xyz / proj_pos.w;
+        out.clip_pos = vec4<f32>(ndc.xy + d / camera.size, ndc.z, 1.0);
+        out.d = d;
+        out.conic = cov2d_conic(cov);
+        out.color = vec4<f32>(color.rgb, color.a);
+        out.display_mode = display_mode;
+        return out;
+    }
+
+    // Ellipse (debug) mode: oriented eigen-axis quad with a hard outline (unchanged).
     let axes = cov2d_axes(gaussian, model_transform, camera, std_dev * gaussian_transform.size);
     if all(axes == vec4<f32>(0.0)) {
         out.clip_pos = vec4<f32>(0.0, 0.0, 2.0, 1.0);
@@ -123,10 +155,7 @@ fn vert_main(
 
     out.clip_pos = vec4<f32>(clip_pos, proj_pos.zw);
     out.quad_offset = quad_offset;
-    // Mip-Splatting opacity compensation: conserve energy after the cov2d low-pass dilation so it
-    // anti-aliases sub-pixel splats (kills the grainy sparkle) WITHOUT brightening distant ones.
-    let comp = cov2d_compensation(gaussian, model_transform, camera);
-    out.color = vec4<f32>(color.rgb, color.a * comp);
+    out.color = color;
     out.display_mode = display_mode;
     out.std_dev = std_dev;
 
@@ -140,17 +169,21 @@ struct FragmentInput {
     @location(1) color: vec4<f32>,
     @location(2) @interpolate(flat) display_mode: u32,
     @location(3) @interpolate(flat) std_dev: f32,
+    // Splat mode only: inverse 2D covariance (conic) + pixel offset center->fragment.
+    @location(4) conic: vec3<f32>,
+    @location(5) d: vec2<f32>,
 
     @builtin(position) clip_pos: vec4<f32>,
 }
 
 fn splat(in: FragmentInput) -> vec4<f32> {
-    let radius_sq = dot(in.quad_offset, in.quad_offset);
-    if radius_sq > in.std_dev * in.std_dev {
+    // Exact gaussian via the conic (bevy GAUSSIAN_3D fragment): power = -0.5 * d^T * conic * d.
+    let power = -0.5 * (in.conic.x * in.d.x * in.d.x + in.conic.z * in.d.y * in.d.y)
+        + in.conic.y * in.d.x * in.d.y;
+    if power > 0.0 {
         discard;
     }
-
-    let alpha = in.color.a * exp(-radius_sq);
+    let alpha = min(exp(power) * in.color.a, 0.999);
     return vec4<f32>(in.color.rgb, alpha);
 }
 
