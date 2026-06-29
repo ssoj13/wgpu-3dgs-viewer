@@ -894,6 +894,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam"
+version = "0.33.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f22fb22f065b308be0d8724e3706c7fa3fc2a6c7d6899df4cad7860e7a75436"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2953,12 +2962,11 @@ dependencies = [
 [[package]]
 name = "wgpu-3dgs-core"
 version = "0.7.0"
-source = "git+https://github.com/LioQing/wgpu-3dgs-core?tag=v0.7.0#25f6c2ee4ab991da3eb9aaf312941b23a240d704"
 dependencies = [
  "async-trait",
  "bytemuck",
  "flate2",
- "glam",
+ "glam 0.33.2",
  "half",
  "itertools",
  "log",
@@ -2977,7 +2985,7 @@ source = "git+https://github.com/LioQing/wgpu-3dgs-editor?tag=v0.7.0#c1ca9149145
 dependencies = [
  "bitflags 2.11.1",
  "bytemuck",
- "glam",
+ "glam 0.32.1",
  "half",
  "log",
  "paste",
@@ -2996,7 +3004,7 @@ dependencies = [
  "clap",
  "colored",
  "env_logger",
- "glam",
+ "glam 0.33.2",
  "half",
  "log",
  "oneshot",

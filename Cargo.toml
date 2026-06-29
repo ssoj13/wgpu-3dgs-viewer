@@ -78,12 +78,14 @@ pollster = { version = "0.4" }
 winit = { version = "0.30" }
 
 [patch.crates-io]
-wgpu-3dgs-core = { git = "https://github.com/LioQing/wgpu-3dgs-core", tag = "v0.7.0" }
+# `wgpu-3dgs-core` is OUR fork living next door at ../wgpu-3dgs-core (cglibs/). Reference it by path
+# so the local core+viewer pair builds standalone on the same glam 0.33 — no LioQing-upstream
+# (glam 0.32) version split. NOTE: this [patch] only affects STANDALONE builds of THIS crate; when
+# colmap-rs consumes the viewer via its own `git = ssoj13` ref, cargo ignores this block and applies
+# colmap-rs's top-level [patch.crates-io] (which redirects BOTH core and viewer to the ssoj13 forks).
+wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
+# editor stays on upstream: optional/off by default, and there is no local clone in cglibs/.
 wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true, tag = "v0.7.0" }
-
-# For local development:
-# wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
-# wgpu-3dgs-editor = { path = "../wgpu-3dgs-editor", optional = true }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
