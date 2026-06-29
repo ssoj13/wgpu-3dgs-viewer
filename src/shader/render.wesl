@@ -2,6 +2,7 @@ import package::{
     camera::{ Camera, camera_aspect_ratio },
     utils::{
         cov2d_axes,
+        cov2d_compensation,
         view_color,
     },
 };
@@ -122,7 +123,10 @@ fn vert_main(
 
     out.clip_pos = vec4<f32>(clip_pos, proj_pos.zw);
     out.quad_offset = quad_offset;
-    out.color = color;
+    // Mip-Splatting opacity compensation: conserve energy after the cov2d low-pass dilation so it
+    // anti-aliases sub-pixel splats (kills the grainy sparkle) WITHOUT brightening distant ones.
+    let comp = cov2d_compensation(gaussian, model_transform, camera);
+    out.color = vec4<f32>(color.rgb, color.a * comp);
     out.display_mode = display_mode;
     out.std_dev = std_dev;
 

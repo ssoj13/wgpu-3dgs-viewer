@@ -19,10 +19,9 @@ fn cull(ndc_pos: vec3<f32>) -> bool {
     return !(all(ndc_pos >= vec3<f32>(-1.0, -1.0, 0.0)) && all(ndc_pos <= vec3<f32>(1.0)));
 }
 
-// Project a 3D covariance matrix into a 2D covariance matrix.
-//
-// The returned 2D covariance matrix is represented as (cov.xx, cov.xy, cov.yy).
-fn cov2d(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> vec3<f32> {
+// Project a 3D covariance matrix into a 2D (screen-space) covariance matrix, WITHOUT the low-pass
+// dilation. Represented as (cov.xx, cov.xy, cov.yy) in pixel².
+fn cov2d_raw(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> vec3<f32> {
     let cov3d = gaussian_unpack_cov3d(gaussian);
     let sr = model_scale_rot_mat(model_transform);
 
@@ -45,6 +44,28 @@ fn cov2d(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) ->
     let cov2d = (j * w * sr) * vrk * transpose(j * w * sr);
 
     return vec3<f32>(cov2d[0][0], cov2d[0][1], cov2d[1][1]);
+}
+
+// Screen-space low-pass dilation (px²) added to the 2D-covariance diagonal. Matches inria 3DGS /
+// Mip-Splatting: it guarantees every splat covers ≳ 1px so sub-pixel gaussians stop aliasing /
+// sparkling (the grainy-chrome artifact). `cov2d_compensation` rescales opacity so the dilation does
+// not brighten or inflate distant splats.
+const cov2d_dilation = 0.3;
+
+// Projected 2D covariance WITH the low-pass dilation applied — the footprint used for the splat axes
+// (both the render quad and the preprocess cull bound, so they stay consistent).
+fn cov2d(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> vec3<f32> {
+    let c = cov2d_raw(gaussian, model_transform, camera);
+    return vec3<f32>(c.x + cov2d_dilation, c.y, c.z + cov2d_dilation);
+}
+
+// Mip-Splatting opacity compensation for the dilation: sqrt(det(raw) / det(dilated)) ∈ (0, 1].
+// Multiply a splat's alpha by this so dilating its footprint conserves total energy.
+fn cov2d_compensation(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> f32 {
+    let c = cov2d_raw(gaussian, model_transform, camera);
+    let det_raw = c.x * c.z - c.y * c.y;
+    let det_dil = (c.x + cov2d_dilation) * (c.z + cov2d_dilation) - c.y * c.y;
+    return sqrt(max(det_raw, 0.0) / max(det_dil, 1e-9));
 }
 
 // Calculate the diagonal axes of a 2D covariance matrix.
