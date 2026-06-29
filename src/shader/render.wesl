@@ -108,6 +108,14 @@ fn vert_main(
     let std_dev = gaussian_transform_max_std_dev(gaussian_transform.flags);
 
     if display_mode == gaussian_display_mode_splat {
+        // bevy `in_frustum` cull, by gaussian CENTER. A splat at/behind the near plane projects with
+        // w <= 0 (or |ndc| >> 1) and its 2D covariance explodes into a screen-spanning streak; bevy
+        // drops it here before building the quad.
+        let ndc = proj_pos.xyz / proj_pos.w;
+        if proj_pos.w <= 0.0 || abs(ndc.x) > 1.1 || abs(ndc.y) > 1.1 || ndc.z < 0.0 || ndc.z > 1.0 {
+            out.clip_pos = vec4<f32>(0.0, 0.0, 2.0, 1.0);
+            return out;
+        }
         // bevy_gaussian_splatting GAUSSIAN_3D + USE_AABB path: axis-aligned bbox quad sized to the
         // 3-sigma footprint, with the exact per-pixel conic gaussian evaluated in the fragment.
         let cov = cov2d(gaussian, model_transform, camera);
@@ -117,17 +125,18 @@ fn vert_main(
             return out;
         }
         // AABB half-extent (px) = cutoff (= std_dev) * max eigen-stddev (bevy get_bounding_box_clip).
+        // Clamped to 1024px so a pathologically elongated splat can't span the viewport (the eigen
+        // path clamped axis length the same way).
         let mid = 0.5 * (cov.x + cov.z);
         let term = sqrt(max(mid * mid - det, 0.0));
         let lambda1 = mid + term;
         let lambda2 = max(mid - term, 0.0);
-        let radius_px = std_dev * gaussian_transform.size * max(sqrt(lambda1), sqrt(lambda2));
+        let radius_px = min(std_dev * gaussian_transform.size * max(sqrt(lambda1), sqrt(lambda2)), 1024.0);
 
         let corner = quad_offset(vert_index);          // unit +/-1 quad corner
         let d = corner * radius_px;                     // px offset center->vertex (bevy bb.zw)
         // bevy maps to NDC directly (world_to_clip already perspective-divides, w ~ 1) then offsets
         // by radius_px / size; replicate that so the quad is exactly bevy-sized in real pixels.
-        let ndc = proj_pos.xyz / proj_pos.w;
         out.clip_pos = vec4<f32>(ndc.xy + d / camera.size, ndc.z, 1.0);
         out.d = d;
         out.conic = cov2d_conic(cov);

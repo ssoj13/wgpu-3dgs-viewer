@@ -30,33 +30,33 @@ fn cull(ndc_pos: vec3<f32>) -> bool {
 // covariance in half-pixel² units, so +0.3 under-covered (≈ 0.27 real px) → sub-pixel sparkle.
 fn cov2d_raw(gaussian: Gaussian, model_transform: ModelTransform, camera: Camera) -> vec3<f32> {
     let cov3d = gaussian_unpack_cov3d(gaussian);
+    let sr = model_scale_rot_mat(model_transform);
+
     let vrk = mat3x3<f32>(
         cov3d[0], cov3d[1], cov3d[2],
         cov3d[1], cov3d[3], cov3d[4],
         cov3d[2], cov3d[4], cov3d[5],
     );
-    // Fold the model transform's scale+rotation into the 3D covariance (world space), exactly as
-    // bevy folds gaussian_uniforms.transform: Σ_world = SR · Σ · SRᵀ.
-    let sr = model_scale_rot_mat(model_transform);
-    let vrk_w = sr * vrk * transpose(sr);
 
-    let world_pos = model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
-    let t = camera.view * world_pos;
+    // This crate's ORIGINAL EWA Jacobian / orientation (proven correct for this camera convention,
+    // i.e. +focal.y). The ONLY change from the original is the focal scale: full viewport size
+    // instead of size*0.5, so the covariance is in real pixels (proj[0][0] = 2f/width -> focal = 2f,
+    // bevy's units). That, with the half-NDC placement in render.wesl, gives the correct 3-sigma
+    // footprint AND makes the +0.3 low-pass dilation cover >=1px (clean AA). The old *0.5 left it in
+    // half-pixel units, so +0.3 under-covered (~0.27 real px) -> sub-pixel sparkle/grain.
+    let focal = vec2<f32>(camera.proj[0][0], camera.proj[1][1]) * camera.size;
 
-    let focal = vec2<f32>(camera.proj[0][0] * camera.size.x, camera.proj[1][1] * camera.size.y);
-    let s = 1.0 / (t.z * t.z);
-    let j = mat3x3<f32>(
-        focal.x / t.z, 0.0, -(focal.x * t.x) * s,
-        0.0, -focal.y / t.z, (focal.y * t.y) * s,
+    let t = camera.view * model_transform_mat(model_transform) * vec4<f32>(gaussian.pos, 1.0);
+    let j = transpose(mat3x3<f32>(
+        focal.x / t.z, 0.0, -(focal.x * t.x) / (t.z * t.z),
+        0.0, focal.y / t.z, -(focal.y * t.y) / (t.z * t.z),
         0.0, 0.0, 0.0,
-    );
-    let w = transpose(mat3x3<f32>(
-        camera.view[0].xyz,
-        camera.view[1].xyz,
-        camera.view[2].xyz,
     ));
-    let tt = w * j;
-    let cov = transpose(tt) * vrk_w * tt;
+    let w = mat3x3<f32>(camera.view[0].xyz, camera.view[1].xyz, camera.view[2].xyz);
+
+    let m = j * w * sr;
+    let cov = m * vrk * transpose(m);
+
     return vec3<f32>(cov[0][0], cov[0][1], cov[1][1]);
 }
 
