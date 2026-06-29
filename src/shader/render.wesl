@@ -150,14 +150,7 @@ fn splat(in: FragmentInput) -> vec4<f32> {
         discard;
     }
 
-    // True gaussian falloff. `quad_offset` is the eigen-axis position scaled so |quad_offset| = 1
-    // lands at `std_dev`·sigma (the axes from `cov2d_axes` are ALREADY multiplied by `std_dev`, and
-    // the vertex multiplies the unit quad by `std_dev` again). The exact gaussian at that point is
-    // exp(-0.5 * std_dev^2 * |quad_offset|^2): |q| = 1/std_dev gives exp(-0.5) at 1 sigma, |q| = 1
-    // gives exp(-0.5*std_dev^2) at the std_dev-sigma edge. The original `exp(-radius_sq)` dropped the
-    // 0.5*std_dev^2 factor, so every splat fell off ~std_dev x too slowly -> rendered ~2x too wide,
-    // the milky over-blur / wispy chrome vs the inria & bevy reference (which use the exact conic).
-    let alpha = in.color.a * exp(-0.5 * in.std_dev * in.std_dev * radius_sq);
+    let alpha = in.color.a * exp(-radius_sq);
     return vec4<f32>(in.color.rgb, alpha);
 }
 
