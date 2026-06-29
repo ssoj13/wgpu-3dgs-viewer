@@ -1,5 +1,5 @@
 use crate::{
-    CameraBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
+    CameraBuffer, CropBoundsBuffer, GaussiansDepthBuffer, IndirectArgsBuffer, IndirectIndicesBuffer,
     PreprocessorCreateError, RadixSortIndirectArgsBuffer,
     core::{
         BufferWrapper, ComputeBundle, ComputeBundleBuilder, GaussianPod, GaussianTransformBuffer,
@@ -45,6 +45,7 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
+        crop_bounds: &CropBoundsBuffer,
         #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
         #[cfg(feature = "viewer-selection")]
         invert_selection: &selection::PreprocessorInvertSelectionBuffer,
@@ -60,6 +61,7 @@ impl<G: GaussianPod, B> Preprocessor<G, B> {
             radix_sort_indirect_args,
             indirect_indices,
             gaussians_depth,
+            crop_bounds,
             #[cfg(feature = "viewer-selection")]
             selection,
             #[cfg(feature = "viewer-selection")]
@@ -217,6 +219,17 @@ impl<G: GaussianPod> Preprocessor<G> {
                     },
                     count: None,
                 },
+                // Crop bounds uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 10,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         };
 
@@ -232,6 +245,7 @@ impl<G: GaussianPod> Preprocessor<G> {
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
+        crop_bounds: &CropBoundsBuffer,
         #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
         #[cfg(feature = "viewer-selection")]
         invert_selection: &selection::PreprocessorInvertSelectionBuffer,
@@ -258,6 +272,7 @@ impl<G: GaussianPod> Preprocessor<G> {
             radix_sort_indirect_args,
             indirect_indices,
             gaussians_depth,
+            crop_bounds,
             #[cfg(feature = "viewer-selection")]
             selection,
             #[cfg(feature = "viewer-selection")]
@@ -302,6 +317,7 @@ impl<G: GaussianPod> Preprocessor<G> {
         radix_sort_indirect_args: &RadixSortIndirectArgsBuffer,
         indirect_indices: &IndirectIndicesBuffer,
         gaussians_depth: &GaussiansDepthBuffer,
+        crop_bounds: &CropBoundsBuffer,
         #[cfg(feature = "viewer-selection")] selection: &SelectionBuffer,
         #[cfg(feature = "viewer-selection")]
         invert_selection: &selection::PreprocessorInvertSelectionBuffer,
@@ -361,6 +377,11 @@ impl<G: GaussianPod> Preprocessor<G> {
                 wgpu::BindGroupEntry {
                     binding: 9,
                     resource: invert_selection.buffer().as_entire_binding(),
+                },
+                // Crop bounds uniform buffer
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: crop_bounds.buffer().as_entire_binding(),
                 },
             ],
         })

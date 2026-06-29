@@ -43,6 +43,17 @@ var<storage, read_write> indirect_indices: array<u32>;
 @group(0) @binding(7)
 var<storage, read_write> gaussians_depth: array<f32>;
 
+// Crop box (axis-aligned, in original Gaussian/model space). `enabled == 0` keeps all Gaussians.
+// Lives at binding 10 so it never collides with the optional selection bindings 8/9.
+struct CropBounds {
+    min: vec3<f32>,
+    enabled: u32,
+    max: vec3<f32>,
+    _padding: u32,
+}
+@group(0) @binding(10)
+var<uniform> crop: CropBounds;
+
 @if(selection_buffer) @group(0) @binding(8)
 var<storage, read> selection: array<u32>;
 
@@ -78,6 +89,14 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 
     let gaussian = gaussians[index];
+
+    // Crop: discard Gaussians whose center is outside the AABB. Compared in original Gaussian space
+    // (gaussian.pos, before model_to_world) so the box matches crop_min/max from the host gizmo.
+    if crop.enabled != 0u {
+        if any(gaussian.pos < crop.min) || any(gaussian.pos > crop.max) {
+            return;
+        }
+    }
 
     let world_pos = model_to_world(model_transform, gaussian.pos);
     let proj_pos = world_to_camera(camera, world_pos);

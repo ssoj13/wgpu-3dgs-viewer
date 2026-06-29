@@ -71,6 +71,7 @@ pub struct Viewer<G: GaussianPod = DefaultGaussianPod> {
     pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
     pub indirect_indices_buffer: IndirectIndicesBuffer,
     pub gaussians_depth_buffer: GaussiansDepthBuffer,
+    pub crop_bounds_buffer: CropBoundsBuffer,
     #[cfg(feature = "viewer-selection")]
     pub selection_buffer: SelectionBuffer,
     #[cfg(feature = "viewer-selection")]
@@ -131,6 +132,9 @@ impl<G: GaussianPod> Viewer<G> {
         log::debug!("Creating gaussians depth buffer");
         let gaussians_depth_buffer = GaussiansDepthBuffer::new(device, len);
 
+        log::debug!("Creating crop bounds buffer");
+        let crop_bounds_buffer = CropBoundsBuffer::new(device);
+
         #[cfg(feature = "viewer-selection")]
         let selection_buffer = {
             log::debug!("Creating selection buffer");
@@ -154,6 +158,7 @@ impl<G: GaussianPod> Viewer<G> {
             &radix_sort_indirect_args_buffer,
             &indirect_indices_buffer,
             &gaussians_depth_buffer,
+            &crop_bounds_buffer,
             #[cfg(feature = "viewer-selection")]
             &selection_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -187,6 +192,7 @@ impl<G: GaussianPod> Viewer<G> {
             radix_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
+            crop_bounds_buffer,
             #[cfg(feature = "viewer-selection")]
             selection_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -231,6 +237,22 @@ impl<G: GaussianPod> Viewer<G> {
         pod: &ModelTransformPod,
     ) {
         self.model_transform_buffer.update_with_pod(queue, pod);
+    }
+
+    /// Update the crop bounds (AABB cull applied in the preprocess pass).
+    ///
+    /// `enabled = false` disables cropping (all Gaussians kept). `min`/`max` are in original
+    /// Gaussian space — the same space as the loaded positions, i.e. BEFORE
+    /// [`Self::update_model_transform`]. This is cheap enough to call every frame (a single uniform
+    /// write), enabling live cropping while a crop gizmo is dragged.
+    pub fn update_crop_bounds(
+        &mut self,
+        queue: &wgpu::Queue,
+        min: Vec3,
+        max: Vec3,
+        enabled: bool,
+    ) {
+        self.crop_bounds_buffer.update(queue, min, max, enabled);
     }
 
     /// Update the Gaussian transform.

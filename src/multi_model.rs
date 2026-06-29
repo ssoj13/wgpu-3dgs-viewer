@@ -78,6 +78,7 @@ pub struct MultiModelViewerGaussianBuffers<G: GaussianPod = DefaultGaussianPod> 
     pub radix_sort_indirect_args_buffer: RadixSortIndirectArgsBuffer,
     pub indirect_indices_buffer: IndirectIndicesBuffer,
     pub gaussians_depth_buffer: GaussiansDepthBuffer,
+    pub crop_bounds_buffer: CropBoundsBuffer,
     #[cfg(feature = "viewer-selection")]
     pub selection_buffer: SelectionBuffer,
     #[cfg(feature = "viewer-selection")]
@@ -118,6 +119,9 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         log::debug!("Creating gaussians depth buffer");
         let gaussians_depth_buffer = GaussiansDepthBuffer::new(device, len);
 
+        log::debug!("Creating crop bounds buffer");
+        let crop_bounds_buffer = CropBoundsBuffer::new(device);
+
         #[cfg(feature = "viewer-selection")]
         let selection_buffer = {
             log::debug!("Creating selection buffer");
@@ -137,6 +141,7 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             radix_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
+            crop_bounds_buffer,
             #[cfg(feature = "viewer-selection")]
             selection_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -174,6 +179,9 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         log::debug!("Creating gaussians depth buffer");
         let gaussians_depth_buffer = GaussiansDepthBuffer::new(device, count as u32);
 
+        log::debug!("Creating crop bounds buffer");
+        let crop_bounds_buffer = CropBoundsBuffer::new(device);
+
         #[cfg(feature = "viewer-selection")]
         let selection_buffer = {
             log::debug!("Creating selection buffer");
@@ -193,6 +201,7 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
             radix_sort_indirect_args_buffer,
             indirect_indices_buffer,
             gaussians_depth_buffer,
+            crop_bounds_buffer,
             #[cfg(feature = "viewer-selection")]
             selection_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -218,6 +227,17 @@ impl<G: GaussianPod> MultiModelViewerGaussianBuffers<G> {
         pod: &ModelTransformPod,
     ) {
         self.model_transform_buffer.update_with_pod(queue, pod);
+    }
+
+    /// Update the crop bounds (AABB cull in the preprocess pass). See [`Viewer::update_crop_bounds`].
+    pub fn update_crop_bounds(
+        &mut self,
+        queue: &wgpu::Queue,
+        min: Vec3,
+        max: Vec3,
+        enabled: bool,
+    ) {
+        self.crop_bounds_buffer.update(queue, min, max, enabled);
     }
 }
 
@@ -249,6 +269,7 @@ impl MultiModelViewerBindGroups {
             &gaussian_buffers.radix_sort_indirect_args_buffer,
             &gaussian_buffers.indirect_indices_buffer,
             &gaussian_buffers.gaussians_depth_buffer,
+            &gaussian_buffers.crop_bounds_buffer,
             #[cfg(feature = "viewer-selection")]
             &gaussian_buffers.selection_buffer,
             #[cfg(feature = "viewer-selection")]
@@ -439,6 +460,23 @@ impl<G: GaussianPod, K: Hash + std::cmp::Eq> MultiModelViewer<G, K> {
             .ok_or(MultiModelViewerAccessError::ModelNotFound)?
             .gaussian_buffers
             .update_model_transform_with_pod(queue, pod);
+        Ok(())
+    }
+
+    /// Update the crop bounds for a model (AABB cull in the preprocess pass).
+    pub fn update_crop_bounds(
+        &mut self,
+        queue: &wgpu::Queue,
+        key: &K,
+        min: Vec3,
+        max: Vec3,
+        enabled: bool,
+    ) -> Result<(), MultiModelViewerAccessError> {
+        self.models
+            .get_mut(key)
+            .ok_or(MultiModelViewerAccessError::ModelNotFound)?
+            .gaussian_buffers
+            .update_crop_bounds(queue, min, max, enabled);
         Ok(())
     }
 
