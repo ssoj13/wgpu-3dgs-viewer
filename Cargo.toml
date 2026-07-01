@@ -52,7 +52,9 @@ viewer-selection = ["selection"]
 editor = ["dep:wgpu-3dgs-editor"]
 
 [dependencies]
-wgpu-3dgs-core = { version = "0.7" }
+# Consume our core fork by git `main` (carries the glam 0.33 bump) so a git
+# consumer resolves core transitively with no [patch] needed on their side.
+wgpu-3dgs-core = { git = "ssh://git@github.com/ssoj13/wgpu-3dgs-core.git", branch = "main" }
 wgpu-3dgs-editor = { version = "0.7", optional = true }
 
 bytemuck = { version = "1.25", features = [
@@ -78,12 +80,7 @@ pollster = { version = "0.4" }
 winit = { version = "0.30" }
 
 [patch.crates-io]
-# `wgpu-3dgs-core` is OUR fork living next door at ../wgpu-3dgs-core (cglibs/). Reference it by path
-# so the local core+viewer pair builds standalone on the same glam 0.33 — no LioQing-upstream
-# (glam 0.32) version split. NOTE: this [patch] only affects STANDALONE builds of THIS crate; when
-# colmap-rs consumes the viewer via its own `git = ssoj13` ref, cargo ignores this block and applies
-# colmap-rs's top-level [patch.crates-io] (which redirects BOTH core and viewer to the ssoj13 forks).
-wgpu-3dgs-core = { path = "../wgpu-3dgs-core" }
+# `wgpu-3dgs-core` is now a direct git dep above (no crates-io patch needed).
 # editor stays on upstream: optional/off by default, and there is no local clone in cglibs/.
 wgpu-3dgs-editor = { git = "https://github.com/LioQing/wgpu-3dgs-editor", optional = true, tag = "v0.7.0" }
 

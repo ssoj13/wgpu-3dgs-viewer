@@ -2962,6 +2962,28 @@ dependencies = [
 [[package]]
 name = "wgpu-3dgs-core"
 version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1a4c5981e53070820baf0812ed59f50d5d8327b8f1d6760fe16a1775587caec"
+dependencies = [
+ "async-trait",
+ "bytemuck",
+ "flate2",
+ "glam 0.32.1",
+ "half",
+ "itertools",
+ "log",
+ "oneshot",
+ "paste",
+ "ply-rs",
+ "thiserror 2.0.18",
+ "wesl",
+ "wgpu",
+]
+
+[[package]]
+name = "wgpu-3dgs-core"
+version = "0.7.0"
+source = "git+ssh://git@github.com/ssoj13/wgpu-3dgs-core.git?branch=main#06e863859adac08c8a7929135c9bc0e959f72590"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -2992,7 +3014,7 @@ dependencies = [
  "thiserror 2.0.18",
  "wesl",
  "wgpu",
- "wgpu-3dgs-core",
+ "wgpu-3dgs-core 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3013,7 +3035,7 @@ dependencies = [
  "thiserror 2.0.18",
  "wesl",
  "wgpu",
- "wgpu-3dgs-core",
+ "wgpu-3dgs-core 0.7.0 (git+ssh://git@github.com/ssoj13/wgpu-3dgs-core.git?branch=main)",
  "wgpu-3dgs-editor",
  "winit",
 ]
